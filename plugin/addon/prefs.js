@@ -1,0 +1,202 @@
+// Default preferences for Z-Transplit.
+//
+// Keys are written out in full (extensions.zotero.ztransplit.*) so that this
+// file is valid as-is: Zotero loads it through
+// Services.scriptloader.loadSubScript(addon.getResourceURI("prefs.js"), { pref })
+// and writes every entry into the DEFAULT branch (see Zotero.Plugins#
+// setDefaultPrefs in chrome/content/zotero/xpcom/plugins.js).
+//
+// zotero-plugin-scaffold's build.prefs.prefix (see zotero-plugin.config.ts) is
+// set to the same prefix and leaves already-prefixed keys unchanged
+// (PrefsManager#getPrefsWithPrefix), so the source and the built copy agree.
+//
+// NOTE: this file is executed in a scope whose ONLY global is `pref()` — see
+// setDefaultPrefs() in plugins.js, which loads it with
+// `target: { pref(pref, value) { … } }`. Nothing else (Zotero, Services,
+// window, document) is reachable from here, so the preference pane cannot be
+// registered from this file. See the pane section at the bottom for where the
+// pane lives and who registers it.
+
+// Master switch for text translation in the reader / item pane.
+// ON by default so a fresh install runs at full capability: the reader pane
+// section registers immediately and every entry point is reachable. Users who
+// want the plugin dormant can uncheck it in the preferences pane (the pane
+// section then unregisters; the item-menu stays for re-enabling).
+pref("extensions.zotero.ztransplit.translate.enabled", true);
+// Translate automatically when a reader item/selection opens (needs
+// translate.enabled). ON by default for the same reason as translate.enabled:
+// a fresh install should show the feature working without hunting for a
+// switch. The cost is one engine request per opened selection, so users on a
+// slow or metered connection can turn it off here or in the item pane.
+pref("extensions.zotero.ztransplit.translate.auto", true);
+// Upper bound of characters sent to the engine per request.
+pref("extensions.zotero.ztransplit.translate.maxChars", 10000);
+
+// 网络区域声明（src/utils/region.ts）：auto = 未声明（沿用出厂默认，不做任何
+// 推断）| global | cn。声明后在设置面板套用该区域的推荐值（只覆盖仍为出厂
+// 默认的键，用户显式选过的引擎不被推翻）。
+pref("extensions.zotero.ztransplit.region", "auto");
+
+// 偏好结构版本号（src/utils/prefMigrations.ts）：记录已执行的最新迁移步骤。
+// 出厂 0，首次启动由迁移机制写入已完成步骤号；之后每次追加迁移时随之递增。
+pref("extensions.zotero.ztransplit.prefSchemaVersion", 0);
+
+// 合并批量的输入上限（估算 token）。全文翻译与双语对照把多个段落合并成一次
+// 模型请求，planTranslationChunks 按这个预算打包：下一段会超出预算时提前
+// 收批（该批少带一个段落），而不是超限发送。
+pref("extensions.zotero.ztransplit.translate.batchMaxTokens", 8192);
+
+// Engine selection + per-engine credentials. Defaults mirror the values the
+// translate pipeline is expected to read (single source of truth: this file).
+pref("extensions.zotero.ztransplit.translate.engineType", "google");
+pref("extensions.zotero.ztransplit.translate.google.apiKey", "");
+pref("extensions.zotero.ztransplit.translate.bing.apiKey", "");
+pref("extensions.zotero.ztransplit.translate.bing.region", "");
+pref("extensions.zotero.ztransplit.translate.deepl.apiKey", "");
+pref("extensions.zotero.ztransplit.translate.deepl.useFree", false);
+pref("extensions.zotero.ztransplit.translate.custom.apiUrl", "");
+pref("extensions.zotero.ztransplit.translate.custom.apiKey", "");
+pref("extensions.zotero.ztransplit.translate.custom.model", "");
+
+// AI 引擎（OpenAI 兼容 chat/completions + 用户自建 prompt 模板）。
+// prompt 留空 = 使用内置默认模板（src/core/translation/promptTemplate.ts 的
+// DEFAULT_AI_PROMPT，即 formulaPreservingPrompt 的模板化版本）：设置面板里的
+// 「恢复默认模板」按钮写的就是空串，所以空值必须是合法值而不是错误。
+pref("extensions.zotero.ztransplit.translate.ai.apiUrl", "");
+pref("extensions.zotero.ztransplit.translate.ai.apiKey", "");
+pref("extensions.zotero.ztransplit.translate.ai.model", "");
+pref("extensions.zotero.ztransplit.translate.ai.prompt", "");
+// Extra HTTP headers for the AI and custom OpenAI-compatible endpoints, one
+// `Name: value` per line (translate.ai.headers / translate.custom.headers).
+// Merged after the built-in Content-Type/Authorization, so a name collision
+// lets the user's value win. "" = none. Invalid lines are ignored at parse.
+pref("extensions.zotero.ztransplit.translate.ai.headers", "");
+pref("extensions.zotero.ztransplit.translate.custom.headers", "");
+
+// Attachment-title template for translated PDFs (translations.nameTemplate).
+// Placeholders: {lang} target language, {title} source base name, {date}
+// YYYY-MM-DD. "" = the legacy default shape `Translated (lang) · title`.
+// The dedup/split recognizers derive their matcher from the SAME template,
+// so a template change intentionally stops recognizing titles produced by
+// the previous template (the next translation creates a fresh attachment).
+pref("extensions.zotero.ztransplit.translations.nameTemplate", "");
+
+// 单次请求的输出 token 上限（translate.output.maxTokens）。0 = 自动：单段
+// 路径按文本长度推导，批量路径按模型目录 / 默认 16384。思考型模型的隐藏
+// 推理会消耗输出配额，自动上限可能中途耗尽返回空结果；显式预算整体替换
+// 推导值，空回重试也不会越过它。
+pref("extensions.zotero.ztransplit.translate.output.maxTokens", 0);
+
+// 术语表（translate.glossary）：一行一条「原文=译文」，AI 与自定义引擎的
+// 每个请求把术语表注入系统提示。注入按出现过滤：只注入待译文本中出现的
+// 术语（拉丁整词、中文子串，见 src/core/translation/glossary.ts）。
+// 留空 = 不注入。修改后相关翻译重新请求（缓存指纹包含整张术语表）。
+pref("extensions.zotero.ztransplit.translate.glossary", "");
+
+// Target language for PDF split-view translation ("" = follow Zotero locale).
+// The reader translate pane overrides this per request; the PDF pipeline, the
+// Zotero 10 bilingual interleave view (src/ui/bilingualControl.ts) and
+// read-aloud of the translation all read it as their default target language.
+// Declared here so the key is a first-class setting rather
+// than an undeclared runtime read (leadero read it undeclared with a "zh-CN"
+// fallback — same behaviour, now visible).
+pref("extensions.zotero.ztransplit.translate.targetLanguage", "");
+
+// OpenDataLoader parser options (src/core/pdf/OpenDataLoaderPdfClient.ts,
+// src/core/pdf/opendataloader-pdf-parser.ts). enabled/tableEnable/timeout
+// mirror leadero's; useStructTree and returnImages deliberately differ from
+// leadero and ship ON, so a fresh install keeps multi-column reading order
+// and figures intact. Both cost parse time (struct tree on every document,
+// embedded images also on payload size and memory) — the settings pane
+// documents the trade-off and either can be turned off.
+pref("extensions.zotero.ztransplit.pdfParser.opendataloader.enabled", true);
+pref("extensions.zotero.ztransplit.pdfParser.opendataloader.tableEnable", "default");
+pref("extensions.zotero.ztransplit.pdfParser.opendataloader.useStructTree", true);
+pref("extensions.zotero.ztransplit.pdfParser.opendataloader.timeout", 300);
+pref("extensions.zotero.ztransplit.pdfParser.opendataloader.returnImages", true);
+// 翻译前把已翻译段落的原文从 PDF 内容流中删除（替代白色遮罩）；失败自动回退遮罩
+pref("extensions.zotero.ztransplit.pdfParser.originalTextRemoval.enabled", true);
+
+// Persistent paragraph translation cache (src/core/translation/translationCache.ts).
+// Content-addressed translation records under
+// {DataDir}/ztransplit/translation-cache/, shared across sessions and output
+// modes (full-text attachment / split view / bilingual interleave).
+pref("extensions.zotero.ztransplit.translate.cache.enabled", true);
+// Prune threshold in megabytes; pruning is LRU by last use, down to 70%.
+pref("extensions.zotero.ztransplit.translate.cache.maxSizeMB", 200);
+
+// Bilingual interleave view (src/core/pdf/sdt/, Zotero 10 reading mode).
+// Default presentation when a bilingual session starts: off | interleave | transOnly.
+pref("extensions.zotero.ztransplit.reader.bilingual.defaultMode", "interleave");
+// Concurrent paragraph/batch translation requests inside the interleave view.
+pref("extensions.zotero.ztransplit.reader.bilingual.concurrency", 2);
+
+// Read-aloud (src/core/readAloud/). Empty voice = the system default voice.
+pref("extensions.zotero.ztransplit.readAloud.rate", 1.0);
+pref("extensions.zotero.ztransplit.readAloud.voice", "");
+
+// Word cards (src/core/wordcards/wordCardStore.ts, src/ui/translatePane.ts).
+// When on, a single-word reader selection is looked up as a dictionary card,
+// every lookup is recorded under {DataDir}/ztransplit/word-cards/, and the
+// pane shows a recent-words strip. Off = the pane keeps the plain-translation
+// behaviour for word selections; the word-cards tab stays reachable and shows
+// a disabled hint instead of cards.
+pref("extensions.zotero.ztransplit.wordcards.enabled", true);
+
+// ─── Preference pane ───────────────────────────────────────────────────────
+// The Z-Transplit settings pane (编辑 → 设置 → Z-Transplit) is a Zotero 7
+// native preference pane, i.e. an XUL fragment that Zotero.PreferencePanes
+// loads into its own preferences window:
+//
+//   addon/content/preferences.xhtml   markup — XUL is the default namespace,
+//                                     HTML tags are written `html:input` etc.
+//                                     (Zotero_Preferences._loadPane parses
+//                                     plugin panes with defaultXUL: true).
+//                                     Three sections: 常规 / 翻译引擎 /
+//                                     PDF 分屏翻译. Every control is bound to
+//                                     one of the prefs above with a
+//                                     `preference="extensions.zotero.ztransplit.…"`
+//                                     attribute (Zotero's own two-way binding
+//                                     in _initImportedNodesPostInsert), except
+//                                     translate.maxChars, which is validated in
+//                                     JS so an empty value can never reach
+//                                     Zotero.Prefs.set() on an INT pref.
+//   addon/content/preferences.js      behaviour — engine field visibility,
+//                                     key show/hide, maxChars / ODL timeout
+//                                     validation (on blur an invalid value
+//                                     restores the stored one without writing
+//                                     the pref), and the in-pane
+//                                     zotero-pdf-translate probe
+//                                     (same check as
+//                                     src/core/translation/featureReadiness.ts
+//                                     #hasPDFTranslatePlugin). Exposes
+//                                     window.ZTransplitPrefs for the inline
+//                                     oncommand/onload handlers, because the
+//                                     pane script runs in a Cu.Sandbox whose
+//                                     prototype is the window — top-level
+//                                     declarations there are NOT window
+//                                     properties.
+//   addon/content/preferences.css     styling — loaded as a document-wide
+//                                     xml-stylesheet by Zotero, so every rule
+//                                     is scoped under #zotero-prefpane-ztransplit.
+//   addon/locale/{en-US,zh-CN}/ztransplit-preferences.ftl
+//                                     all pane copy, linked from the pane via
+//                                     <linkset><html:link
+//                                     rel="localization" …/></linkset>.
+//
+// Registration happens in addon/bootstrap.js#startup (the only file outside
+// src/ that Zotero executes with a full Zotero/Services scope):
+//
+//   Zotero.PreferencePanes.register({
+//     pluginID: "ztransplit@zotero.org",
+//     src: "content/preferences.xhtml",
+//     scripts: ["content/preferences.js"],
+//     stylesheets: ["content/preferences.css"],
+//     id: "zotero-prefpane-ztransplit",
+//   });
+//
+// Relative URIs are resolved against the plugin root by
+// Zotero.Plugins.resolveURI. If src/modules/registerPreferences.ts ever takes
+// this over, the fixed pane id makes the second registration a no-op instead
+// of a duplicate pane.
+// ───────────────────────────────────────────────────────────────────────────

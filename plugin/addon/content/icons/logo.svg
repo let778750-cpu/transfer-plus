@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 96 96">
+  <title>Z-Transplit</title>
+  <!--
+    Z-Transplit 品牌标（2026-10-09 改版：弃圆盘 T 标，整族改用侧边栏
+    translate.svg 的「文 / A 互换」母题）。
+
+    改版理由：T 盘是字母标志的读法，翻译功能语义弱；「文 / A」对角即
+    两种语言，两支绯红互换箭头即翻译动作，功能语义直读，且与条目面板
+    section header、侧边导航已经使用的 translate.svg / translate-20.svg
+    同一母题，插件图标与功能图标从此是一个家族。
+
+    配色沿品牌三色：墨 #1a1a1a 圆盘 = 原文版面（被翻译的那一页）；白
+    笔画「文 / A」= 盘上负形的两种语言（浅底变体反转为墨笔画，见
+    ztransplit-dark.svg）；绯红 #b5343a 箭头 = 翻译/互换（与
+    translate.svg「绯红 = 互换箭头」同义）。
+
+    几何（96 视框，圆盘 r=34）：母题取 translate.svg 的全部 13 段路径
+    （笔画 9、圆角端，路径坐标见该文件头注释），关于圆心 (48,48) 整体
+    缩放 0.58（坐标换算 x' = 20.16 + 0.58x）；笔画由 9×0.58=5.2 加粗为
+    6——48/24px 实渲染 1.5px，小尺寸下保住墨量；全组再下移 1.2 做垂直
+    光学配重（缩放后墨迹包围盒 y 23.0..70.7 整体上浮，下移后盘内上空腔
+    10.2、下空腔 10.1 齐）。最远墨点为 A 右下端帽，距圆心 28.7 + 端帽
+    3 = 31.7，对 r=34 盘边余量 2.3，不触盘。
+
+    变体矩阵与旧标一致：本文件为品牌图；README 用 ztransplit-light.svg
+    （浅底，墨盘）/ ztransplit-dark.svg（深底，浅盘）两变体；manifest
+    用 ztransplit-any.svg（墨盘显式配色，亮暗宿主均可辨，QA S7）。
+    本文件不被 manifest 与 chrome:// 引用，配色不受 QA S7 约束。
+  -->
+  <circle cx="48" cy="48" r="34" fill="#1a1a1a"/>
+  <g transform="translate(0 1.2)">
+    <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M36.4 26 L38.7 29.4"/>
+      <path d="M28.3 36.4 H46.8"/>
+      <path d="M37.6 36.4 L29.4 50.3"/>
+      <path d="M37.6 36.4 L45.7 50.3"/>
+      <path d="M51.5 67.7 L59.6 45.7"/>
+      <path d="M67.7 67.7 L59.6 45.7"/>
+      <path d="M55 59.6 H64.2"/>
+    </g>
+    <g fill="none" stroke="#b5343a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M56.1 28.3 L65.4 37.6"/>
+      <path d="M65.4 37.6 L60.2 37.6"/>
+      <path d="M65.4 37.6 L65.4 32.3"/>
+      <path d="M39.9 67.7 L30.6 58.4"/>
+      <path d="M30.6 58.4 L35.8 58.4"/>
+      <path d="M30.6 58.4 L30.6 63.7"/>
+    </g>
+  </g>
+</svg>

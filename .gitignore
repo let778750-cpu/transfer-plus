@@ -1,0 +1,9 @@
+dist/
+work/
+node_modules/
+.scaffold/
+__pycache__/
+*.pyc
+.venv/
+*.local.json
+.env

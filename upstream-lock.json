@@ -1,0 +1,29 @@
+[
+  {
+    "repository": "Liozhang/z-transplit",
+    "version": "v1.20.0",
+    "commit": "490612cba42e39eb8167b595a19b22a0f16b4114",
+    "tree_sha": "490612cba42e39eb8167b595a19b22a0f16b4114",
+    "blob_verification": "git-sha1",
+    "destination": "plugin",
+    "files": 142
+  },
+  {
+    "repository": "guaguastandup/zotero-pdf2zh",
+    "version": "v4.1.8",
+    "commit": "5dd2eaf019f71266764c269bbd2104b559ae95cf",
+    "tree_sha": "5dd2eaf019f71266764c269bbd2104b559ae95cf",
+    "blob_verification": "git-sha1",
+    "destination": "server/upstream",
+    "files": 2
+  },
+  {
+    "repository": "funstory-ai/BabelDOC",
+    "version": "v0.7.1",
+    "commit": "d922e2b0c5a353bde8731921eb442c07ae75849d",
+    "tree_sha": "d922e2b0c5a353bde8731921eb442c07ae75849d",
+    "blob_verification": "git-sha1",
+    "destination": "engine-patches/upstream",
+    "files": 425
+  }
+]

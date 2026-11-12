@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Research Max 中文对照",
+  "version": "0.4.0",
+  "description": "保留数学对象的中文 PDF 对照阅读",
+  "author": "Research Max contributors; based on Z-Transplit",
+  "applications": {
+    "zotero": {
+      "id": "zotero-bilingual@research-max.local",
+      "update_url": "https://research-max.invalid/zotero-bilingual/updates.json",
+      "strict_min_version": "10.0",
+      "strict_max_version": "10.*"
+    }
+  }
+}

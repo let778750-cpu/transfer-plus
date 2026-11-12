@@ -1,0 +1,166 @@
+/**
+ * Translation pipeline types.
+ *
+ * Home of the type contracts the PDF translation pipeline (src/core/pdf/**)
+ * imports. They live OUTSIDE the PDF tree on purpose: the engine layer
+ * (translationEngines.ts) and any UI/host caller implement them, while the
+ * pipeline only consumes them — so a change to an engine never drags the
+ * renderer into its dependency graph.
+ *
+ * Ported from leadero's src/core/pdf/translation/translateParagraphs.ts
+ * (types only; the orchestration functions stay with the pipeline).
+ */
+
+/**
+ * Progress of a measurable phase: `done` of `total` units finished. Carried by
+ * the pipeline's onProgress callbacks so a UI layer can render one in-place
+ * progress row (see utils/progressWindow.ts) instead of appending a row per
+ * report.
+ */
+export interface ProgressFraction {
+  done: number;
+  total: number;
+}
+
+/** Result of translating a single paragraph. */
+export interface ParagraphTranslation {
+  translated: string;
+  /** True if this paragraph was a pure-formula placeholder and left untranslated. */
+  skippedFormula: boolean;
+  /** True if translation failed and the original text was kept as fallback. */
+  failed: boolean;
+}
+
+/**
+ * A translator function — injected rather than imported, so the pipeline stays
+ * decoupled from the bridge wiring order and is testable with a stub.
+ *
+ * Implementations wrap createTranslator() from
+ * src/core/translation/translationEngines.ts, which resolves the configured
+ * engine, its credentials and (for the OpenAI-compatible engine) the
+ * formula-preserving prompt.
+ */
+export type ParagraphTranslator = (
+  text: string,
+  targetLanguage: string,
+  sourceLanguage?: string,
+) => Promise<string>;
+
+/**
+ * Result of a single batch translation call.
+ */
+export interface BatchTranslateResult {
+  /** Translated texts, aligned 1:1 with the input. Always === input.length. */
+  translations: string[];
+  /** Indices that failed and kept original text (empty if all succeeded). */
+  failedIndices: number[];
+  /**
+   * Human-readable reason for the failures, when known. Rate-limit failures
+   * carry the localized wording, never the raw HTTP message — callers surface
+   * this verbatim (the bilingual progress line reads it through
+   * getLastEngineError), so it must already be user-facing. Absent when
+   * nothing failed or no reason was captured.
+   */
+  error?: string;
+}
+
+/**
+ * A batch translator — translates multiple paragraphs in one model call.
+ *
+ * Implementations pack the input into one prompt, call the model, and split
+ * the response back into exactly `texts.length` strings. MUST always return
+ * exactly `texts.length` translations (never throw — fall back to per-paragraph
+ * or original text internally). This guarantee is what lets the orchestrator
+ * scatter results back positionally without a length assertion.
+ */
+export type BatchTranslator = (
+  texts: string[],
+  signal?: AbortSignal,
+) => Promise<BatchTranslateResult>;
+
+/** Per-page text arrays to translate. */
+export interface BatchTranslationOptions {
+  targetLanguage: string;
+  /** Source language hint for the cache key (default "auto"). */
+  sourceLanguage?: string;
+  /** Max input chars per chunk (derived from the model's context window). */
+  inputBudgetChars: number;
+  /** Max estimated output chars per chunk (derived from maxOutputTokens). */
+  outputBudgetChars: number;
+  /** Chunk-level concurrency (default 4). */
+  concurrency?: number;
+  /** Cooperative cancel signal — checked before each chunk dispatch. */
+  signal?: AbortSignal;
+  /**
+   * Phase line, plus an optional fraction for phases that have one (the batch
+   * translation step). Callers render a fraction on a single in-place progress
+   * row and a bare phase line as a plain row — see utils/progressWindow.ts.
+   */
+  onProgress?: (msg: string, fraction?: ProgressFraction) => void;
+  /**
+   * Persistent-cache identity of the engine configuration (engine|model|
+   * credentials|endpoint). When set, paragraph translations are looked up in /
+   * written to the persistent translation cache (translationCache.ts). Omit to
+   * bypass the cache entirely.
+   */
+  cacheIdentity?: string;
+}
+
+export interface BatchTranslationResult {
+  /** Per-page translated arrays, aligned 1:1 with the input pageTexts. */
+  translatedSets: string[][];
+  /** Total paragraphs that failed and kept original text. */
+  failedCount: number;
+}
+
+/**
+ * Handle returned by createAIBatchTranslator — carries the batch translator
+ * plus the token-budget parameters the orchestrator needs for chunking.
+ */
+export interface BatchTranslatorHandle {
+  translate: BatchTranslator;
+  /** Max input chars per chunk (from contextWindow − system − output reserve). */
+  inputBudgetChars: number;
+  /** Max estimated output chars per chunk (from maxOutputTokens). */
+  outputBudgetChars: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dictionary cards (single-word reader lookups)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One sense line of a dictionary card. */
+export interface DictionarySense {
+  /** Part-of-speech tag as displayed ("n.", "v.", "adj.", "m.", …). */
+  pos?: string;
+  meaning: string;
+  /** Per-sense usage example (model cards). */
+  example?: string;
+  exampleTranslation?: string;
+}
+
+/** Card-level bilingual example pair (Youdao cards). */
+export interface DictionaryExample {
+  text: string;
+  translation: string;
+}
+
+/** Where a card's content came from — shown on the card as a source tag. */
+export type DictionaryCardSource = "youdao" | "model" | "mt";
+
+/**
+ * Content of one dictionary card. Produced by the lookup chain in
+ * dictionaryCard.ts (Youdao → model engine → MT simple card) and persisted
+ * verbatim inside word-card records (wordCardStore.ts), so a card must stay
+ * JSON-safe and self-contained.
+ */
+export interface DictionaryCardContent {
+  /** Display form of the looked-up word. */
+  word: string;
+  /** Phonetic transcription as displayed (IPA, slashes included where the source gives them). */
+  phonetic?: string;
+  senses: DictionarySense[];
+  /** Card-level bilingual examples (Youdao); model cards use per-sense examples. */
+  examples?: DictionaryExample[];
+  source: DictionaryCardSource;
+}

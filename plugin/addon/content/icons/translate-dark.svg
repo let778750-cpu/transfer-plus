@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 96 96">
+  <title>Z-Transplit 翻译（深色宿主）</title>
+  <!--
+    条目面板 section header 图标的深色宿主变体（registerSection
+    header.darkIcon）：几何与 translate.svg 的「文 / A 互换」母题完全一致，
+    墨色笔画反为浅色 #fafafa，避免没入深色面板底；绯红互换箭头 #b5343a 不变。
+  -->
+  <g fill="none" stroke="#fafafa" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 10 L32 16"/>
+    <path d="M14 28 H46"/>
+    <path d="M30 28 L16 52"/>
+    <path d="M30 28 L44 52"/>
+    <path d="M54 82 L68 44"/>
+    <path d="M82 82 L68 44"/>
+    <path d="M60 68 H76"/>
+  </g>
+  <g fill="none" stroke="#b5343a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62 14 L78 30"/>
+    <path d="M78 30 L69 30"/>
+    <path d="M78 30 L78 21"/>
+    <path d="M34 82 L18 66"/>
+    <path d="M18 66 L27 66"/>
+    <path d="M18 66 L18 75"/>
+  </g>
+</svg>
