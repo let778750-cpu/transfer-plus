@@ -1,8 +1,8 @@
 # Transfer Plus — Zotero 论文中文对照阅读
 
-在 Zotero 里单击一次"翻译"，即可得到整份保留版式与数学公式的中文对照 PDF：论文**不再上传任何云端解析服务**，BabelDOC 0.7.1 在本机完成布局与排版，仅待译文本发送至你自己配置的大模型接口。
+**简体中文** | [English](README.en.md)
 
-> **English:** Transfer Plus is a Zotero plugin that produces a complete bilingual companion PDF for your papers in one click — typeset locally by the [BabelDOC](https://github.com/funstory-ai/BabelDOC) engine with mathematical objects preserved vectorially. Your PDF never leaves this machine; only the text to translate is sent to the LLM API you configure.
+在 Zotero 里单击一次"翻译"，即可得到整份保留版式与数学公式的中文对照 PDF：论文**不再上传任何云端解析服务**，BabelDOC 0.7.1 在本机完成布局与排版，仅待译文本发送至你自己配置的大模型接口。
 
 ## 演示
 
