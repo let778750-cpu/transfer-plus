@@ -6,9 +6,9 @@
 
 ## 演示
 
-![Transfer Plus 演示视频](assets/transfer-plus-demo.mp4)
+![Transfer Plus 演示：Zotero 中英文原文与中文译文左右对照阅读](assets/demo.png)
 
-> 若 GitHub 未直接播放，请下载 `assets/transfer-plus-demo.mp4` 或在 [Releases](../../releases) 页查看。
+左侧为论文原文，右侧为插件生成的中文对照 PDF——版式、分栏与数学公式（含上标、积分、矩阵等）均原样保留，可直接同步阅读与批注。
 
 ## 特性
 
