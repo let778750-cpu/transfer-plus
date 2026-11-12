@@ -18,6 +18,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 - **In-place attachment update**: translations are written into the same Chinese attachment — atomic replacement that keeps the attachment ID and annotations; a backup is taken before every update.
 - **Resumable jobs & caching**: jobs can be cancelled and resumed; re-running with unchanged rules makes zero model requests. Measured locally on a 15-page paper: ~2.4 minutes cold start for full delivery, 0.14-second cache hit on the second click.
 - **Quota & rate-limit protection**: field-proven rate limiting, quota circuit breaker, `{{N}}` placeholder validation and cancellation semantics; the plugin pauses when quota is exhausted and never silently switches to paid plans.
+- **Vendor-neutral translation backend**: standard OpenAI-compatible protocol — built-in Zhipu/DeepSeek presets, or point it at any third-party or self-hosted compatible endpoint.
 - **Credential safety**: API keys are stored encrypted with Windows DPAPI, bound to the current Windows account; the source code, packages and logs contain no credentials.
 
 ## Requirements
@@ -26,7 +27,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 |---|---|
 | OS | Windows 10/11 (64-bit; the runtime ships an isolated Python and does not touch your system environment) |
 | Zotero | 10.x |
-| Translation API | An API key for Zhipu AI (default `glm-5.3-flash`) or DeepSeek |
+| Translation API | An API key for any OpenAI-compatible LLM API (Zhipu/DeepSeek presets built in, default `glm-5.3-flash`; API base URL and model are freely configurable) |
 
 ## Installation (3 steps)
 
@@ -40,7 +41,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 
 2. **Install the plugin**: download `research-max-bilingual-0.4.0.xpi`, then in Zotero choose **Tools → Plugins → gear icon (top right) → Install Plugin From File** and select the file.
 
-3. **Configure the translation API**: open **Tools → 中文对照设置 (Bilingual Settings)**, pick a provider (Zhipu by default, switchable to DeepSeek), paste your API key and click **Save**; use "Test connection" to verify.
+3. **Configure the translation API**: open **Tools → 中文对照设置 (Bilingual Settings)**, pick a built-in preset (Zhipu/DeepSeek) or simply edit the **API base URL** and **model** fields to point at any OpenAI-compatible service (default Zhipu `glm-5.3-flash`), paste your API key and click **Save**; use "Test connection" to verify. Any model that follows instructions reliably (strictly preserving the `{{N}}` math placeholders) works — a text-only model is sufficient.
 
 > Since 0.4.0, **no OCR cloud token is required** and paper files are never uploaded.
 
