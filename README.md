@@ -39,7 +39,7 @@
 
    脚本会校验每个文件的 SHA256 再安装（默认装到 `D:\ZoteroTools\research-max-bilingual`，无 D 盘时装到 `%LOCALAPPDATA%`；可用 `-RuntimeRoot <路径>` 自定义）。
 
-2. **安装插件**：下载 `research-max-bilingual-0.4.0.xpi`，在 Zotero 中 **工具 → 插件 → 右上角齿轮 → 从文件安装插件**，选择该文件。
+2. **安装插件**：下载 `research-max-bilingual-0.4.1.xpi`，在 Zotero 中 **工具 → 插件 → 右上角齿轮 → 从文件安装插件**，选择该文件。
 
 3. **填写翻译接口**：打开 **工具 → 中文对照设置**，选择"自定义（任意 OpenAI 兼容服务）"并填写 **翻译标准 API 地址** 与 **翻译模型**，或用内置预设快捷填充，粘贴 API Key，点击 **保存**，可用"检测连接"验证。GPT、Claude、Kimi、GLM、DeepSeek、Qwen 等主流模型均可，具体型号由你自行选择；模型只需能稳定遵循指令（严格保留 `{{N}}` 数学占位符）即可，文本模型即可胜任。
 

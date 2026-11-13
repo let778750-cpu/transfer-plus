@@ -39,7 +39,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 
    The script verifies the SHA256 of every file before installing (default location `D:\ZoteroTools\research-max-bilingual`, or `%LOCALAPPDATA%` if there is no D: drive; customize with `-RuntimeRoot <path>`).
 
-2. **Install the plugin**: download `research-max-bilingual-0.4.0.xpi`, then in Zotero choose **Tools → Plugins → gear icon (top right) → Install Plugin From File** and select the file.
+2. **Install the plugin**: download `research-max-bilingual-0.4.1.xpi`, then in Zotero choose **Tools → Plugins → gear icon (top right) → Install Plugin From File** and select the file.
 
 3. **Configure the translation API**: open **Tools → 中文对照设置 (Bilingual Settings)**, choose "Custom (any OpenAI-compatible service)" and fill in the **API base URL** and **model** fields, or use a built-in preset as a shortcut, then paste your API key and click **Save**; use "Test connection" to verify. Any mainstream family works — GPT, Claude, Kimi, GLM, DeepSeek, Qwen, etc. — and the exact model is up to you, as long as it follows instructions reliably (strictly preserving the `{{N}}` math placeholders); a text-only model is sufficient.
 
