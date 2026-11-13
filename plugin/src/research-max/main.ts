@@ -142,20 +142,23 @@ async function settings(){
   settingsWindow=openSettingsWindow(Zotero.getMainWindow(),async(win:any)=>{
       const doc=win.document,body=doc.getElementById("body");body.replaceChildren();
       const make=(tag:string,text="")=>{const el=doc.createElementNS(HTML,tag);el.textContent=text;return el;};
-      body.append(make("h2",`中文对照设置 · ${version}`),make("p","版面解析、公式保护与中文排版全部在本机引擎完成，不上传论文；仅将待译文本发送至下方模型接口。密钥使用当前 Windows 账户加密保存。"));
+      body.append(make("h2",`中文对照设置 · ${version}`),make("p","版面解析、公式保护与中文排版全部在本机引擎完成，不上传论文；仅将待译文本发送至下方你配置的模型接口，任意 OpenAI 兼容服务均可（GPT、Claude、Kimi、GLM、DeepSeek、Qwen 等）。密钥使用当前 Windows 账户加密保存。"));
       const status=make("p","正在连接本机服务…");status.id="message";body.append(status);
       try{
         let config=await api("/api/config");const inputs:any={};
         for(const [key,label] of [["provider","翻译服务商"],["baseUrl","翻译标准 API 地址"],["model","翻译模型"],["apiKey",`翻译 API 密钥${config.hasApiKey?"（已保存，留空保持）":""}`],["glossary","术语表（每行：英文 = 中文）"]]){
           const holder=make("label",label);const input=make(key==="glossary"?"textarea":key==="provider"?"select":"input");
-          if(key==="provider")for(const value of ["zhipu","deepseek"]){const option=make("option",value==="zhipu"?"智谱标准 API":"DeepSeek");option.value=value;input.append(option);}
+          if(key==="provider")for(const [value,label] of [["zhipu","智谱标准 API（预设）"],["deepseek","DeepSeek（预设）"],["custom","自定义（任意 OpenAI 兼容服务）"]]){const option=make("option",label);option.value=value;input.append(option);}
           const secret=key==="apiKey";input.value=secret?"":config[key]||"";if(secret){input.type="password";input.autocomplete="off";}
           if(key==="glossary")input.rows=5;inputs[key]=input;holder.append(input);body.append(holder);
         }
-        inputs.provider.addEventListener("change",()=>{const deep=inputs.provider.value==="deepseek";inputs.baseUrl.value=deep?"https://api.deepseek.com":"https://open.bigmodel.cn/api/paas/v4";inputs.model.value=deep?"deepseek-chat":"glm-5.3-flash";inputs.apiKey.value="";status.textContent="切换服务商后请填入对应密钥。";});
+        const providerPresets:any={zhipu:{baseUrl:"https://open.bigmodel.cn/api/paas/v4",model:"glm-5.3-flash"},deepseek:{baseUrl:"https://api.deepseek.com",model:"deepseek-chat"}};
+        inputs.provider.addEventListener("change",()=>{const preset=providerPresets[inputs.provider.value];
+          if(preset){inputs.baseUrl.value=preset.baseUrl;inputs.model.value=preset.model;inputs.apiKey.value="";status.textContent="已套用预设接口与模型，请填入对应 API 密钥。";}
+          else status.textContent="自定义模式：API 地址与模型名称保持当前值，可填写任意 OpenAI 兼容服务，能稳定遵循翻译指令的模型即可使用。";});
         const save=make("button","保存"),close=make("button","关闭");body.append(save,close);
         save.addEventListener("click",()=>run(async()=>{const value:any={};for(const key of Object.keys(inputs))value[key]=inputs[key].value;
-          if(value.provider!==config.provider&&!value.apiKey)throw new Error("切换服务商时请填写对应 API 密钥");
+          if(String(value.baseUrl).replace(/\/+$/,"")!==config.baseUrl&&!value.apiKey)throw new Error("更换接口地址时请填写对应 API 密钥");
           const old=JSON.stringify(config);const updated=await api("/api/config",value);inputs.apiKey.value="";
           if(old!==JSON.stringify(updated))Zotero.Prefs.set("extensions.zotero.research-max-bilingual.configEpoch",Date.now(),true);
           config=updated;
