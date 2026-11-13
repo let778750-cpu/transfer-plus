@@ -18,7 +18,7 @@ export class ReaderToolbar {
   private active=false;
   private timer:any;
   constructor(private host:Host, private action:(itemID:number)=>void,
-    private update:(button:any,itemID:number)=>void) {}
+    private update:(button:any,itemID:number,reader?:any)=>void) {}
 
   readonly render=(event:any)=>{
     if(!this.active||event.reader?._type!=='pdf')return;
@@ -58,7 +58,7 @@ export class ReaderToolbar {
       const itemID=reader.itemID;
       bindSingleClick(button,()=>{if(this.active)this.action(itemID);});
       entry={doc,button};this.entries.set(reader,entry);
-      this.update(button,itemID);
+      this.update(button,itemID,reader);
     }
     // Reuse our handler after a React remount; no duplicate buttons/listeners.
     if(!entry.button.isConnected||!slot?.contains(entry.button)){
@@ -87,7 +87,7 @@ export class ReaderToolbar {
 
   refresh() {
     for(const [reader,entry] of this.entries)
-      this.attempt(reader,()=>this.update(entry.button,reader.itemID));
+      this.attempt(reader,()=>this.update(entry.button,reader.itemID,reader));
   }
 
   stop() {

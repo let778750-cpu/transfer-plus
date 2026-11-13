@@ -78,6 +78,18 @@ test('cancel before submission finishes remains latched and blocks attachment de
   submitted();await pending;assert.deepEqual(calls,['job']);assert.equal(delivered,0);
   assert.equal(taskButtonState(controls.tasks.get(42)).label,'翻译');
 });
+test('view states drive the idle button; a running task always wins',async()=>{
+  const {TaskControls,taskButtonState}=await controlsModule();
+  assert.equal(taskButtonState(undefined,{available:false,open:false,stale:false}).label,'翻译');
+  assert.equal(taskButtonState(undefined,{available:true,open:false,stale:false}).label,'打开对照');
+  assert.match(taskButtonState(undefined,{available:true,open:false,stale:true}).title,/旧配置/);
+  assert.equal(taskButtonState(undefined,{available:true,open:true,stale:false}).label,'关闭对照');
+  const controls=new TaskControls(()=>{},async()=>{});
+  // The task body intentionally never settles; the label must reflect cancel
+  // semantics immediately, without waiting for the task promise.
+  controls.start(9,async()=>await new Promise(()=>{}));
+  assert.equal(taskButtonState(controls.tasks.get(9),{available:true,open:true,stale:false}).label,'取消翻译');
+});
 test('each paper has its own cancel state and completed delivery cannot be cancelled',async()=>{
   const {TaskControls,taskButtonState}=await controlsModule();const calls=[];let finish;
   const wait=new Promise(resolve=>finish=resolve);const controls=new TaskControls(()=>{},async id=>calls.push(id));

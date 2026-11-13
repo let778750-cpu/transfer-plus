@@ -8,13 +8,33 @@ import {coverageText,reviewIssues} from './readingPanel';
 import {bindSingleClick,installButtonStyle} from './taskControls';
 const HTML = "http://www.w3.org/1999/xhtml";
 const active = new Map<string, any>();
+// Programmatic closes (restore, update, shutdown, stale replace) must not be
+// mistaken for the user closing the tab: only a user close disables the pair.
+const suppressed = new Set<string>();
+export function suppressPairClose(id: string) { suppressed.add(id); }
+export function activePairs() {
+  return [...active.values()].map(s => ({leftID: s.leftAdapter.item.id, tabID: s.tabID,
+    select: () => s.win.Zotero_Tabs.select(s.tabID)}));
+}
+export async function closePairAndRestore(id: string) {
+  const s = active.get(id); if (!s) return;
+  const left = s.leftAdapter.item, win = s.win;
+  suppressPairClose(id); closePair(id);
+  try { win.Zotero_Tabs.close(id); } catch (error:any) { Zotero.logError(error); }
+  // Focus the original attachment; Zotero.Reader.open reuses an existing tab.
+  try { await Zotero.Reader.open(left.id); } catch (error:any) { Zotero.logError(error); }
+}
 function element(doc: any, tag: string, text = "") { const el = doc.createElementNS(HTML, tag); el.textContent = text; return el; }
 export async function openPair(win: any, left: any, right: any, report: any) {
   const found = [...active.values()].find(s => s.leftAdapter.item.id === left.id && s.rightAdapter.item.id === right.id);
   if (found && JSON.stringify(found.report)===JSON.stringify(report)) { win.Zotero_Tabs.select(found.tabID); return found; }
-  if(found){closePair(found.tabID);await flushAnnotationWrites();win.Zotero_Tabs.close(found.tabID);}
-  const {id} = win.Zotero_Tabs.add({type: "reader", title: "中文对照 · " + (left.parentItem?.getField("title") || left.getField("title")),
-    data: {itemID: left.id, isSplitView: true}, select: true, onClose: () => closePair(id)});
+  if(found){suppressPairClose(found.tabID);closePair(found.tabID);await flushAnnotationWrites();win.Zotero_Tabs.close(found.tabID);}
+  const {id} = win.Zotero_Tabs.add({type: "reader", title: left.parentItem?.getField("title") || left.getField("title"),
+    data: {itemID: left.id, isSplitView: true}, select: true,
+    // The tab itself is the paper's reading view; the two panes are the marker.
+    onClose: () => {const wasSuppressed=suppressed.delete(id);const s=active.get(id);
+      const closedLeft=s?.leftAdapter?.item;closePair(id);
+      if(!wasSuppressed&&closedLeft)(Zotero as any).ResearchMaxBilingual?.onPairUserClosed?.(closedLeft.id);}});
   try {
   let old;
   for (let i=0; i<40 && !old; i++) { old = win.document.getElementById(id); if (!old) await Zotero.Promise.delay(50); }
@@ -33,9 +53,9 @@ export async function openPair(win: any, left: any, right: any, report: any) {
   improve.title='检查本机存档，复用已有译文并补充缺漏';
   improve.style.cssText='cursor:pointer;-moz-window-dragging:no-drag;';
   bindSingleClick(improve,()=>{
-    const api=Zotero.ResearchMaxBilingual;
-    if(api.isTranslating(left.id)){api.cancelItem(left.id).catch((e:any)=>win.alert(e.message));return;}
-    api.translate(left).catch((e:any)=>win.alert(e.message));
+    // One primary action for every entry point: cancel while running, open or
+    // close the pair otherwise; translating a companion redirects to source.
+    (Zotero as any).ResearchMaxBilingual?.primaryAction?.(left).catch((e:any)=>win.alert(e.message));
   });
   const coverage=element(doc,'span',coverageText(report));coverage.title=report.pipeline?.startsWith('paddle-cloud')?'按识别清单中的待译词数估算，包含识别到的图表文字；公式与保留的身份信息不计入，不代表识别召回率或语义正确率。':'旧版正文统计，不包含图表内部文字。';
   coverage.style.cssText='font-size:12px;';
@@ -133,6 +153,7 @@ export async function openPair(win: any, left: any, right: any, report: any) {
   } catch (error) {
     // This covers toolbar/report construction too, before `active` is populated.
     // A failed attempt must never leave a selected, permanently empty reader tab.
+    suppressPairClose(id);
     try {closePair(id);} catch(cleanupError) {Zotero.logError(cleanupError);}
     try {win.Zotero_Tabs.close(id);} catch(cleanupError) {Zotero.logError(cleanupError);}
     throw error;
@@ -150,12 +171,12 @@ export function closePair(id: string) {
   for(const t of s.timeoutIds)clean(()=>s.win.clearTimeout(t));
   clean(()=>s.leftAdapter.destroy());clean(()=>s.rightAdapter.destroy());
 }
-export async function closeAll() { for(const [id,s] of active){closePair(id);s.win.Zotero_Tabs.close(id);} await flushAnnotationWrites(); }
+export async function closeAll() { for(const [id,s] of active){suppressPairClose(id);closePair(id);s.win.Zotero_Tabs.close(id);} await flushAnnotationWrites(); }
 export async function closeForUpdate(itemID:number) {
   const matching=[...active].filter(([id,s])=>s.rightAdapter.item.id===itemID);
   try {for(const [id,s] of matching){await s.leftAdapter.flushForUpdate();await s.rightAdapter.flushForUpdate();}}
   catch(error){for(const [id,s] of matching){s.leftAdapter.resumeAfterUpdate();s.rightAdapter.resumeAfterUpdate();}throw error;}
-  for(const [id,s] of matching){closePair(id);s.win.Zotero_Tabs.close(id);}
+  for(const [id,s] of matching){suppressPairClose(id);closePair(id);s.win.Zotero_Tabs.close(id);}
   await flushAnnotationWrites();
   for(const reader of [...(Zotero.Reader._readers||[])]) {
     if(reader.itemID!==itemID)continue;

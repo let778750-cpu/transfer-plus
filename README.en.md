@@ -39,7 +39,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 
    The script verifies the SHA256 of every file before installing (default location `D:\ZoteroTools\research-max-bilingual`, or `%LOCALAPPDATA%` if there is no D: drive; customize with `-RuntimeRoot <path>`).
 
-2. **Install the plugin**: download `research-max-bilingual-0.4.1.xpi`, then in Zotero choose **Tools → Plugins → gear icon (top right) → Install Plugin From File** and select the file.
+2. **Install the plugin**: download `research-max-bilingual-0.4.2.xpi`, then in Zotero choose **Tools → Plugins → gear icon (top right) → Install Plugin From File** and select the file.
 
 3. **Configure the translation API**: open **Tools → 中文对照设置 (Bilingual Settings)**, choose "Custom (any OpenAI-compatible service)" and fill in the **API base URL** and **model** fields, or use a built-in preset as a shortcut, then paste your API key and click **Save**; use "Test connection" to verify. Any mainstream family works — GPT, Claude, Kimi, GLM, DeepSeek, Qwen, etc. — and the exact model is up to you, as long as it follows instructions reliably (strictly preserving the `{{N}}` math placeholders); a text-only model is sufficient.
 
@@ -48,6 +48,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 ## Everyday use
 
 - Open an item's PDF and click **Translate** in the toolbar. The button shows its working state; you can click **Cancel** mid-run — cancelling keeps the progress, and clicking again resumes.
+- When the translation finishes, the same reading view becomes a **side-by-side pair** (original left, translation right) and is restored automatically after restarting Zotero. The button then reads **Close pair** — clicking it returns to the plain original (translation and annotations kept); clicking **Open pair** reopens it instantly from the local archive.
 - Translations are written directly into the Chinese PDF, which reads **side by side** with the original — synchronized or independent scrolling; the toolbar shows the written-text ratio.
 - The **Needs review** menu lists unfinished or preserved regions and locates them on click — nothing is silently hidden.
 - Identity information in references (authors, journal names, DOIs) stays in the original language, while recognizable titles are translated.

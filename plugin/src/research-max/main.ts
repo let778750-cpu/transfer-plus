@@ -1,7 +1,8 @@
 import {api, locate, download, stopService} from "./service";
-import {openPair, closeAll, closeForUpdate} from "./reader";
+import {openPair, closeAll, closeForUpdate, activePairs, closePairAndRestore} from "./reader";
 import {replaceAttachment} from './attachmentUpdate';
 import {findArchiveRecord} from "./archive";
+import {createPairState} from "./pairState";
 import {TaskControls, taskButtonState, type Task} from "./taskControls";
 import {ReaderToolbar} from "./toolbar";
 import {TranslationNotices, closeLegacyCancelledNotices, type Outcome} from "./progress";
@@ -13,10 +14,40 @@ let toolbar:ReaderToolbar|undefined;
 let notices:TranslationNotices|undefined;
 const stateListeners=new Set<()=>void>();
 const controls=new TaskControls(()=>{toolbar?.refresh();for(const fn of stateListeners)fn();},job=>api(`/api/tasks/${job}/cancel`,{}));
-function updateButton(button:any,itemID:number){
-  const state=taskButtonState(controls.tasks.get(itemID));
+// Hash with a stat stamp so the 1s sweep and view lookups never re-read big
+// PDFs unless the file actually changed on disk.
+const hashCache=new Map<string,{stamp:string;hash:string}>();
+async function statHash(path:string|null|undefined){
+  if(!path)return null;
+  let stamp='';
+  try{const stat=await IOUtils.stat(path);stamp=`${stat.lastModified}:${stat.size}`;}catch{return null;}
+  const cached=hashCache.get(path);
+  if(cached&&cached.stamp===stamp)return cached.hash;
+  const hash=fileHash(path);hashCache.set(path,{stamp,hash});return hash;
+}
+const pair=createPairState({
+  maps,remember,
+  sourceHash:async(item:any)=>statHash(await item.getFilePathAsync()),
+  attachmentHash:async(item:any)=>statHash(await item.getFilePathAsync()),
+  epoch:()=>Zotero.Prefs?.get("extensions.zotero.research-max-bilingual.configEpoch",true)||0,
+  items:{get:(id:number)=>Zotero.Items?.get?.(id),getByLibraryAndKey:(l:number,k:string)=>Zotero.Items?.getByLibraryAndKey?.(l,k)},
+  tasksHas:(id:number)=>controls.tasks.has(id),
+  openPair,activePairs,
+  closeReader:(reader:any)=>{try{reader.close();}catch(error){Zotero.logError?.(error);}},
+  mainWindow:()=>Zotero.getMainWindow?.(),
+  logError:(e:any)=>Zotero.logError?.(e),
+  onViewChanged:()=>{toolbar?.refresh();for(const fn of stateListeners)fn();},
+});
+function viewState(itemID:number){
+  const view=pair.cachedView(itemID);
+  return view?{available:true,open:pair.isOpen(itemID),stale:view.stale}:undefined;
+}
+function updateButton(button:any,itemID:number,reader?:any){
+  const state=taskButtonState(controls.tasks.get(itemID),viewState(itemID));
   button.textContent=state.label;button.disabled=state.disabled;button.title=state.title;
   button.setAttribute('aria-busy',String(controls.tasks.has(itemID)));
+  if(reader)pair.maybePair(reader);
+  if(!controls.tasks.has(itemID))pair.ensureView(itemID);
 }
 let archiveWrites:Promise<any>=Promise.resolve();
 let stopping=false;
@@ -39,15 +70,15 @@ function remember(key:string,record:any){
   archiveWrites=operation.catch(()=>{});return operation;
 }
 async function pdfs(items:any[]){const out=[];for(const item of items){if(item.isPDFAttachment?.())out.push(item);else{const best=await item.getBestAttachment?.();if(best?.isPDFAttachment())out.push(best);}}return out;}
-async function translate(item:any){
+async function translate(item:any,force=false){
   if(!item?.isPDFAttachment?.())throw new Error("请选择 PDF 附件");
   return controls.start(item.id,task=>{
     // Clear the previous terminal notice even when the next click hits archive
     // or fails before a new translation job can be submitted.
-    notices?.close(item.id);return translateItem(item,task);
+    notices?.close(item.id);return translateItem(item,task,force);
   });
 }
-async function translateItem(item:any,task:Task){
+async function translateItem(item:any,task:Task,force=false){
   // Offline re-opening uses locally imported attachments. Settings updates clear
   // only the lookup fingerprint; existing PDFs and annotations remain intact.
   const key=`${item.libraryID}:${item.key}`;
@@ -63,17 +94,22 @@ async function translateItem(item:any,task:Task){
   if(!sourcePath)throw new Error("PDF 尚未下载到本机");
   const hash=fileHash(sourcePath);
   const epoch=Zotero.Prefs.get("extensions.zotero.research-max-bilingual.configEpoch",true)||0;
-  const record=await findArchiveRecord(saved.data,key,hash,epoch,async(value:any)=>{
-    if(value.libraryID!==undefined&&value.libraryID!==item.libraryID)return false;
-    const attachment=Zotero.Items.getByLibraryAndKey(item.libraryID,value.attachmentKey);
-    if(!attachment||attachment.deleted||!await attachment.fileExists())return false;
-    return fileHash(await attachment.getFilePathAsync())===value.report.outputHash;
-  });
+  // View lookup is epoch-free: a settings change never hides an existing
+  // translation, and never triggers a surprise full re-translation.
+  const view=await pair.viewableFor(item);
+  const record=view?.record??null;
   if(task.cancelRequested||stopping)return;
   // Local reading remains immediate even when the later repair needs a model
   // and that provider is offline or out of quota. This is an existing complete
   // attachment, not delivery of the in-progress repair.
   if(record)await openPair(Zotero.getMainWindow(),item,Zotero.Items.getByLibraryAndKey(item.libraryID,record.attachmentKey),record.report);
+  if(record&&view?.stale&&!force){
+    if(task.cancelRequested||stopping)return;
+    pair.invalidate(item.id);
+    const notice=notices!.show(item.id,'中文对照');
+    notice.finish('completed','已打开现有译文。当前翻译设置已变更，如需按新设置重译，请从右键菜单选择“更新译文”。');
+    return;
+  }
   if(task.cancelRequested||stopping)return;
   let config;
   try{config=await api("/api/config");}
@@ -116,7 +152,7 @@ async function translateItem(item:any,task:Task){
     const existing=owned?.sourceHash===hash&&owned.attachmentKey!==item.key?
       Zotero.Items.getByLibraryAndKey(item.libraryID,owned.attachmentKey):null;
     const newMapping=(a:any)=>({sourceHash:hash,configFingerprint:report.configFingerprint,
-      attachmentKey:a.key,libraryID:item.libraryID,epoch,report});
+      attachmentKey:a.key,libraryID:item.libraryID,epoch,report,pairState:'enabled'});
     const saveMapping=(a:any)=>remember(key,newMapping(a));
     let recorded=false;
     const attachment=reusable?Zotero.Items.getByLibraryAndKey(item.libraryID,reusable.attachmentKey):
@@ -125,13 +161,72 @@ async function translateItem(item:any,task:Task){
         journal:{path:journalPath,record:newMapping(existing)},
         commit:async()=>{await saveMapping(existing);recorded=true;}}):
       await Zotero.Attachments.importFromFile({file,parentItemID:item.parentItemID||undefined,libraryID:item.libraryID,
-      title:`中文对照${report.issues.length?"（待核对）":""} · ${config.model}`});
+      title:`中文对照${report.issues.length?"（待核对）":""}`});
     if(fileHash(await attachment.getFilePathAsync())!==report.outputHash)throw new Error("导入后的译文校验失败，本机存档仍保留");
     if(!recorded)await saveMapping(attachment);
     await api(`/api/tasks/${job.taskId}/imported`,{attachmentKey:attachment.key,libraryID:item.libraryID,sourceKey:key,outputHash:report.outputHash,deliveryId:report.deliveryId});
-    await openPair(Zotero.getMainWindow(),item,attachment,report);outcome='completed';message=report.message||state.message||'中文对照已打开';
+    const pairTab=await openPair(Zotero.getMainWindow(),item,attachment,report);
+    await focusPairAndClosePlain(item.id,pairTab);
+    pair.invalidate(item.id);await pair.viewNow(item.id);
+    await trashSuperseded(item,attachment,saved.data);
+    outcome='completed';message=report.message||state.message||'中文对照已打开';
   }catch(error:any){message=error?.message||String(error);throw error;}
   finally{if(stopping)progress.close();else progress.finish(outcome,message);}
+}
+async function focusPairAndClosePlain(itemID:number,pairTab:any){
+  if(!pairTab?.tabID)return;
+  for(const reader of [...(Zotero.Reader._readers||[])]){
+    if(reader._type!=='pdf'||reader.itemID!==itemID)continue;
+    // Close only positively identified plain-reader tabs, never the pair tab's
+    // own hosted reader (matched by tab id).
+    const tabID=(reader as any)._tabID??reader.tabID;
+    if(tabID&&tabID!==pairTab.tabID){
+      try{reader.close();}catch(error:any){Zotero.logError(error);}
+    }
+  }
+}
+async function trashSuperseded(source:any,current:any,snapshot:any){
+  const kept:string[]=[];
+  for(const value of Object.values(snapshot||{})){
+    const record=value as any;
+    if(!record?.attachmentKey)continue;
+    const candidate=Zotero.Items.getByLibraryAndKey(record.libraryID??source.libraryID,record.attachmentKey);
+    if(!candidate||candidate.deleted||candidate.id===current.id)continue;
+    if(candidate.parentItemID!==source.parentItemID)continue;
+    if(!String(candidate.getField('title')||'').startsWith('中文对照'))continue;
+    if(candidate.getAnnotations().length){kept.push(String(candidate.getField('title')));continue;}
+    try{candidate.deleted=true;await candidate.saveTx();}catch(error:any){Zotero.logError(error);}
+  }
+  if(kept.length){
+    const notice=notices?.show(source.id,'中文对照');
+    notice?.finish('completed',`已交付新译文；${kept.length} 个带批注的旧对照附件已保留，请自行决定是否删除。`);
+  }
+}
+// One primary action for every entry point (toolbar, context menu, pair pane).
+// Cancel keeps its in-task semantics; a companion attachment redirects to its
+// source instead of translating itself recursively.
+async function primaryAction(itemRaw:any){
+  let item=itemRaw;
+  const counterpart=await pair.counterpartOf(item);
+  if(counterpart){
+    const source=pair.sourceItemFor(counterpart);
+    if(!source)throw new Error("找不到该译文对应的原文附件");
+    item=source;
+  }
+  if(controls.tasks.has(item.id))return controls.cancel(item.id);
+  const view=await pair.viewNow(item.id);
+  if(!view)return translate(item);
+  if(pair.isOpen(item.id)){
+    const current=pair.activePair(item.id);
+    await pair.setPairState(item,'disabled');
+    if(current)await closePairAndRestore(current.tabID);
+    return;
+  }
+  await pair.setPairState(item,'enabled');
+  const right=Zotero.Items.getByLibraryAndKey(item.libraryID,view.record.attachmentKey);
+  if(!right||right.deleted||!await right.fileExists())throw new Error("对照附件不可用，请重新翻译");
+  const pairTab=await openPair(Zotero.getMainWindow(),item,right,view.record.report);
+  await focusPairAndClosePlain(item.id,pairTab);
 }
 async function selected(){const list=await pdfs(Zotero.getActiveZoteroPane().getSelectedItems());if(!list.length)throw new Error("请选择一篇或多篇带 PDF 的论文");batchCancelled=false;let next=0;
   const consume=async()=>{while(next<list.length&&!stopping&&!batchCancelled){const item=list[next++];try{await translate(item);}catch(e){Zotero.logError(e);}}};
@@ -160,7 +255,7 @@ async function settings(){
         save.addEventListener("click",()=>run(async()=>{const value:any={};for(const key of Object.keys(inputs))value[key]=inputs[key].value;
           if(String(value.baseUrl).replace(/\/+$/,"")!==config.baseUrl&&!value.apiKey)throw new Error("更换接口地址时请填写对应 API 密钥");
           const old=JSON.stringify(config);const updated=await api("/api/config",value);inputs.apiKey.value="";
-          if(old!==JSON.stringify(updated))Zotero.Prefs.set("extensions.zotero.research-max-bilingual.configEpoch",Date.now(),true);
+          if(old!==JSON.stringify(updated)){Zotero.Prefs.set("extensions.zotero.research-max-bilingual.configEpoch",Date.now(),true);pair.invalidate();}
           config=updated;
           status.textContent="已保存。关闭设置后，在 PDF 工具栏点击翻译即可。";}));
         close.addEventListener("click",()=>win.close());status.textContent="本机服务已连接；本地引擎：BabelDOC 0.7.1";
@@ -168,7 +263,10 @@ async function settings(){
     },e=>Zotero.logError(e));
   return settingsWindow;
 }
-const context=(event:any)=>{if(event.reader?._type!=="pdf")return;const id=event.reader.itemID;event.append({label:controls.tasks.has(id)?"取消翻译":"翻译",onCommand:()=>run(()=>controls.tasks.has(id)?controls.cancel(id):translate(Zotero.Items.get(id)))});};
+const context=(event:any)=>{if(event.reader?._type!=="pdf")return;const id=event.reader.itemID;
+  event.append({label:taskButtonState(controls.tasks.get(id),viewState(id)).label,
+    onCommand:()=>run(()=>primaryAction(Zotero.Items.get(id)))});
+  if(!controls.tasks.has(id))event.append({label:"更新译文（按当前设置重译）",onCommand:()=>run(()=>translate(Zotero.Items.get(id),true))});};
 export async function addWindow(win:any){if(windows.has(win))return;windows.add(win);for(const [target,label,action] of [["menu_ToolsPopup","中文对照设置",settings],["menu_ToolsPopup","取消中文翻译任务",cancel],["zotero-itemmenu","中文对照（所选论文）",selected]] as const){
   const parent=win.document.getElementById(target);if(!parent)continue;const node=win.document.createXULElement("menuitem");node.className="research-max-bilingual-menu";node.setAttribute("label",label);node.addEventListener("command",()=>run(action));parent.append(node);}}
 export async function removeWindow(win:any){for(const el of win.document.querySelectorAll(".research-max-bilingual-menu"))el.remove();windows.delete(win);}
@@ -182,9 +280,12 @@ export async function start(){stopping=false;Zotero.addShutdownListener(async()=
     register:handler=>Zotero.Reader.registerEventListener('renderToolbar',handler,ID),
     unregister:handler=>Zotero.Reader.unregisterEventListener('renderToolbar',handler),
     repeat:(fn,ms)=>timers.setInterval(fn,ms),clear:id=>timers.clearInterval(id),error:e=>Zotero.logError(e)},
-    id=>run(()=>controls.tasks.has(id)?controls.cancel(id):translate(Zotero.Items.get(id))),updateButton);
+    id=>run(()=>primaryAction(Zotero.Items.get(id))),updateButton);
   toolbar.start();
   Zotero.Reader.registerEventListener("createViewContextMenu",context,ID);for(const win of Zotero.getMainWindows())await addWindow(win);
   Zotero.ResearchMaxBilingual={translate,settings,selected,cancel,openPair,isTranslating:(id:number)=>controls.tasks.has(id),cancelItem:(id:number)=>controls.cancel(id),
-    watchTranslation:(id:number,callback:any)=>{const fn=()=>callback(taskButtonState(controls.tasks.get(id)));stateListeners.add(fn);fn();return()=>stateListeners.delete(fn);}};}
+    primaryAction,
+    onPairUserClosed:(leftID:number)=>{const item=Zotero.Items.get(leftID);
+      if(item)pair.setPairState(item,'disabled').catch((e:any)=>Zotero.logError(e));},
+    watchTranslation:(id:number,callback:any)=>{const fn=()=>callback(taskButtonState(controls.tasks.get(id),viewState(id)));stateListeners.add(fn);fn();return()=>stateListeners.delete(fn);}};}
 export async function stop(){stopping=true;if(settingsWindow&&!settingsWindow.closed)settingsWindow.close();settingsWindow=undefined;notices?.closeAll();notices=undefined;toolbar?.stop();toolbar=undefined;Zotero.Reader.unregisterEventListener("createViewContextMenu",context);await closeAll();for(const win of windows)await removeWindow(win);await stopService();delete Zotero.ResearchMaxBilingual;}

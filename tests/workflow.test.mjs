@@ -22,14 +22,14 @@ async function host(failAt=''){
     '@mozilla.org/network/file-input-stream;1':{createInstance:()=>({init(p){this.path=p;},close(){}})},
     '@mozilla.org/security/hash;1':{createInstance:()=>({init(){},updateFromStream(s){this.value=s.path==='/source.pdf'?'\x11':'\x22';},finish(){return this.value.repeat(32);}})}}};
   globalThis.PathUtils={join:(...v)=>v.join('/')};
-  globalThis.IOUtils={exists:async()=>false,readJSON:async()=>structuredClone(mapping),writeJSON:async(p,v)=>{mapping=structuredClone(v);}};
+  globalThis.IOUtils={exists:async()=>false,readJSON:async()=>structuredClone(mapping),writeJSON:async(p,v)=>{mapping=structuredClone(v);},stat:async()=>({lastModified:1,size:1})};
   globalThis.ChromeUtils={importESModule:()=>({})};globalThis.Services={wm:{getEnumerator:()=>[]}};
   globalThis.Zotero={Profile:{dir:'/profile'},Prefs:{get:()=>0},File:{pathToFile:p=>p},
-    Items:{getByLibraryAndKey:()=>translated},Attachments:{importFromFile:async()=>{imports++;return translated;}},
+    Items:{get:id=>id===1?original:undefined,getByLibraryAndKey:()=>translated},Attachments:{importFromFile:async()=>{imports++;return translated;}},
     addShutdownListener(){},getMainWindows:()=>[],getMainWindow:()=>({alert(){}}),logError(){},Reader:{registerEventListener(){},unregisterEventListener(){}}};
   const mocks={
     service:'export const api=(...a)=>globalThis.__rmbTest.api(...a);export const download=async()=>"/new.pdf";export const locate=async()=>{};export const stopService=async()=>{};',
-    reader:'export const openPair=(...a)=>globalThis.__rmbTest.openPair(...a);export const closeAll=async()=>{};export const closeForUpdate=async()=>{};',
+    reader:'export const openPair=(...a)=>globalThis.__rmbTest.openPair(...a);export const closeAll=async()=>{};export const closeForUpdate=async()=>{};export const activePairs=()=>[];export const closePairAndRestore=async()=>{};',
     toolbar:'export class ReaderToolbar{start(){} stop(){} refresh(){}}',
     progress:'export class TranslationNotices{close(){} closeAll(){} show(){return globalThis.__rmbTest.show();}}export const closeLegacyCancelledNotices=()=>{};'};
   const bundle=await esbuild.build({entryPoints:[path.resolve('plugin/src/research-max/main.ts')],bundle:true,format:'esm',platform:'node',write:false,tsconfigRaw:{},
@@ -43,7 +43,8 @@ test('one Translate checks cached paper and updates its report without duplicate
   assert.equal(h.requests.find(r=>r.p==='/translate').data.automatic,true);
   assert.equal(h.opened.length,2);assert.equal(h.opened[0].right,h.translated);assert.deepEqual(h.opened[1].report,h.report);
   assert.equal(h.imports(),0);assert.equal(h.mapping()['1:ORIG0001'].report.reading.schema,2);
-  assert.ok(labels.includes('取消翻译'));assert.equal(labels.at(-1),'翻译');unsubscribe();await h.mod.stop();
+  // The mock hosts no live pair, so the idle label lands on the archive action.
+  assert.ok(labels.includes('取消翻译'));assert.equal(labels.at(-1),'打开对照');unsubscribe();await h.mod.stop();
 });
 test('provider submission failure leaves existing verified local translation readable',async()=>{
   const h=await host('/translate');await assert.rejects(Zotero.ResearchMaxBilingual.translate(h.original),/offline/);

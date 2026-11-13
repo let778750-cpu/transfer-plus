@@ -28,11 +28,18 @@ export class TaskControls {
     task.phase='delivering';this.changed();return true;
   }
 }
-export function taskButtonState(task?:Task) {
-  if(!task)return {label:'翻译',disabled:false,title:'检查本机存档，复用已有译文并补充缺漏'};
-  if(task.phase==='delivering')return {label:'正在打开…',disabled:true,title:'完整译文已生成，正在导入并打开'};
-  if(task.phase==='cancelling')return {label:'正在取消…',disabled:true,title:'正在停止任务并保留已完成的进度'};
-  return {label:'取消翻译',disabled:false,title:'停止当前论文的翻译，保留进度供下次继续'};
+export type ViewState={available:boolean; open:boolean; stale:boolean};
+export function taskButtonState(task?:Task, view?:ViewState) {
+  // A running task always wins: its cancel semantics stay unchanged.
+  if(task){
+    if(task.phase==='delivering')return {label:'正在打开…',disabled:true,title:'完整译文已生成，正在导入并打开'};
+    if(task.phase==='cancelling')return {label:'正在取消…',disabled:true,title:'正在停止任务并保留已完成的进度'};
+    return {label:'取消翻译',disabled:false,title:'停止当前论文的翻译，保留进度供下次继续'};
+  }
+  if(view?.open)return {label:'关闭对照',disabled:false,title:'关闭左右对照，恢复原文单栏；译文与批注保留，可随时重新打开'};
+  if(view?.available)return {label:'打开对照',disabled:false,
+    title:view.stale?'打开本机存档译文（旧配置译文，可从右键菜单更新）':'打开本机存档译文，与原文左右对照'};
+  return {label:'翻译',disabled:false,title:'检查本机存档，复用已有译文并补充缺漏'};
 }
 export function bindSingleClick(button:any, action:()=>void) {
   // The toolbar is a native window drag region. CSS no-drag, not interception
