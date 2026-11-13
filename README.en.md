@@ -12,7 +12,8 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 
 ## Features
 
-- **One-click translation**: a single "Translate" button performs the local archive check, gap detection, translation, full-PDF typesetting and in-place attachment update; repeated clicks automatically reuse existing translations and only fill the gaps.
+- **One-click translation**: a single "Translate" button performs the local archive check, gap detection, translation, full-PDF typesetting and in-place attachment update; once a translation exists the button toggles the bilingual pair, while re-audits and re-translations are triggered explicitly via "Update translation" in the context menu, reusing existing output and only filling gaps.
+- **In-place bilingual reading**: when a translation finishes, the same reading view automatically becomes an original/translation side-by-side pair, restored automatically after restarting Zotero; one click closes it back to the plain original and another reopens it instantly from the local archive, with the translation and annotations kept throughout.
 - **Papers never leave your machine**: BabelDOC 0.7.1 + onnxruntime parse and typeset locally — no queueing, no cloud OCR; only the text to translate is sent to the API you configure.
 - **Math objects preserved as-is**: vector instructions and formula fonts are verified item by item; formulas are never re-drawn from guessed LaTeX; unsafe regions fall back to the original text and are clearly reported.
 - **In-place attachment update**: translations are written into the same Chinese attachment — atomic replacement that keeps the attachment ID and annotations; a backup is taken before every update.
@@ -49,6 +50,7 @@ The left pane shows the original paper; the right pane is the Chinese companion 
 
 - Open an item's PDF and click **Translate** in the toolbar. The button shows its working state; you can click **Cancel** mid-run — cancelling keeps the progress, and clicking again resumes.
 - When the translation finishes, the same reading view becomes a **side-by-side pair** (original left, translation right) and is restored automatically after restarting Zotero. The button then reads **Close pair** — clicking it returns to the plain original (translation and annotations kept); clicking **Open pair** reopens it instantly from the local archive.
+- Translations are stored as a "中文对照" (bilingual) child attachment under the item (independently annotatable, synced with your library); when you re-translate after changing settings, superseded old pairs are moved to the trash automatically — annotated ones are kept and reported.
 - Translations are written directly into the Chinese PDF, which reads **side by side** with the original — synchronized or independent scrolling; the toolbar shows the written-text ratio.
 - The **Needs review** menu lists unfinished or preserved regions and locates them on click — nothing is silently hidden.
 - Identity information in references (authors, journal names, DOIs) stays in the original language, while recognizable titles are translated.
